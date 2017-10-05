@@ -88,7 +88,8 @@ class Session(dj.Manual):
     # XXX: generating animal ID here - input files only contain genotype
     definition = """
     -> Subject
-    session		: int		# session within
+    record		: int
+    sample		: int
     ---
     -> Study
     session_date	: date		# session date
