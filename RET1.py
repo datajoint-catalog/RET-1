@@ -126,6 +126,8 @@ class Ephys(dj.Manual):
         cell_no		: int		# cell no
         """
 
+    # TODO: not all have 3 stim - so add'l stim part table needed
+    # see also: 20080702_R4.nwb
     class Events(dj.Part):
         definition = """
         -> Ephys.Unit
