@@ -1,3 +1,5 @@
+#! /usr/bin/env python
+
 import os
 
 import re
@@ -17,7 +19,7 @@ from pymysql.err import IntegrityError
 
 import yaml
 
-{'unused': [code, nwb_utils, yaml]}
+{'unused': [code, nwb_utils]}
 # 23456789_123456789_123456789_123456789_123456789_123456789_123456789_12345678
 
 
@@ -257,7 +259,7 @@ class Session(dj.Imported):
 
 @schema
 class Ephys(dj.Computed):
-    TODO = "BOOKMARK"
+
     definition = """
     -> Session
     """
@@ -283,6 +285,8 @@ class Ephys(dj.Computed):
         cell_no		: int		# cell no
         """
 
+    # TODO: not all have 3 stim - so add'l stim part table needed
+    # see also: 20080702_R4.nwb
     class Events(dj.Part):
         definition = """
         -> Ephys.Unit
@@ -294,9 +298,11 @@ class Ephys(dj.Computed):
         """
 
     def _make_tuples(self, key):
-        ''' Ephys._make_tuples WIP '''
+        ''' Ephys._make_tuples '''
 
         key['nwb_file'] = (Session() & key).fetch1()['nwb_file']
+        print('Ephys()._make_tuples: nwb_file', key['nwb_file'])
+
         f = h5py.File(key['nwb_file'], 'r')
 
         #
@@ -369,8 +375,7 @@ class Ephys(dj.Computed):
         f.close()
 
 
-
-
-
 if __name__ == '__main__':
     Session().populate()
+    Ephys().populate()
+    print('import complete.')
