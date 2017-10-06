@@ -126,16 +126,19 @@ class Ephys(dj.Manual):
         cell_no		: int		# cell no
         """
 
-    # TODO: not all have 3 stim - so add'l stim part table needed
-    # see also: 20080702_R4.nwb
-    class Events(dj.Part):
+    class AllEvents(dj.Part):
         definition = """
         -> Ephys.Unit
         ---
-        stim_1		: longblob	# stim_1 events
-        stim_2		: longblob	# stim_2 events
-        stim_3		: longblob	# stim_3 events
-        all		: longblob	# all events
+        times			: longblob	# all events
+        """
+
+    class StimulusEvents(dj.Part):
+        definition = """
+        -> Ephys.Unit
+        stim_id			: tinyint	# stimulus no
+        ---
+        times			: longblob	# events
         """
 
 

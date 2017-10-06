@@ -285,16 +285,22 @@ class Ephys(dj.Computed):
         cell_no		: int		# cell no
         """
 
-    # TODO: not all have 3 stim - so add'l stim part table needed
-    # see also: 20080702_R4.nwb
-    class Events(dj.Part):
+    class AllEvents(dj.Part):
         definition = """
         -> Ephys.Unit
         ---
-        stim_1		: longblob	# stim_1 events
-        stim_2		: longblob	# stim_2 events
-        stim_3		: longblob	# stim_3 events
-        all		: longblob	# all events
+        times			: longblob	# all events
+        """
+
+    class StimulusEvents(dj.Part):
+
+        TODO = True
+
+        definition = """
+        -> Ephys.Unit
+        stim_id			: tinyint	# stimulus no
+        ---
+        times			: longblob	# events
         """
 
     def _make_tuples(self, key):
@@ -340,7 +346,7 @@ class Ephys(dj.Computed):
         #
 
         #
-        # Ephys.Unit and Ephys.Events
+        # Ephys.Unit, Ephys.AllEvents and Ephys.StimulusEvents
         #
 
         g_units = g_proc['Cells']['UnitTimes']
@@ -355,22 +361,39 @@ class Ephys(dj.Computed):
 
             u_key['cell_no'] = e_key['cell_no'] = unit_id
 
+            # Ephys.Unit()
+
             try:
                 Ephys.Unit().insert1(u_key, ignore_extra_fields=True)
             except:
                 print('Ephys().Unit().insert1: failed key', yaml.dump(u_key))
                 raise
 
-            e_key['stim_1'] = unit['stim_1']
-            e_key['stim_2'] = unit['stim_2']
-            e_key['stim_3'] = unit['stim_3']
-            e_key['all'] = unit['times']
+            e_key['times'] = unit['times']
+
+            # Ephys.AllEvents()
 
             try:
-                Ephys().Events().insert1(e_key, ignore_extra_fields=True)
+                Ephys().AllEvents().insert1(e_key, ignore_extra_fields=True)
             except:
-                print('Ephys().Unit().insert1: failed key', yaml.dump(u_key))
+                print('Ephys().AllEvents().insert1: failed key',
+                      yaml.dump(u_key))
                 raise
+
+            for stim_k in [k for k in unit if 'stim_' in k]:
+
+                e_key['stim_id'] = stim_k.split('_')[1]
+                e_key['times'] = unit[stim_k]
+
+                # Ephys.AllEvents()
+
+                try:
+                    Ephys().StimulusEvents().insert1(
+                        e_key, ignore_extra_fields=True)
+                except:
+                    print('Ephys().StimulusEvents().insert1: failed key',
+                          yaml.dump(u_key))
+                    raise
 
         f.close()
 
