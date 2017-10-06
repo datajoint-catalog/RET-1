@@ -398,7 +398,55 @@ class Ephys(dj.Computed):
         f.close()
 
 
+@schema
+class Stimulus(dj.Computed):
+
+    TODO = True
+
+    definition = """
+    -> Session
+    """
+
+    class Trial(dj.Part):
+        definition = """
+        -> Stimulus
+        trial		: smallint	# trial within a session
+        ---
+        start_time	: float
+        stop_time	: float
+        """
+
+    class StimulusPresentation(dj.Part):
+
+        # XXX: len(timestamps) varies w/r/t len(data); timestamps definitive
+        # ... actually 'num_samples' definitive, but same as len(timestamps)
+        #     and so is redundant and discarded.
+
+        definition = """
+        -> Stimulus.Trial
+        ---
+        bpp		: tinyint	# bits per pixel
+        size		: decimal(3,2)	# size (mm)
+        x		: tinyint
+        y		: tinyint
+        dx		: tinyint
+        dy		: tinyint
+        timestamps	: longblob
+        data		: longblob
+        """
+
+    def _make_tuples(self, key):
+
+        key['nwb_file'] = (Session() & key).fetch1()['nwb_file']
+        print('Ephys()._make_tuples: nwb_file', key['nwb_file'])
+
+        f = h5py.File(key['nwb_file'], 'r')
+
+        f.close()
+
+
 if __name__ == '__main__':
     Session().populate()
     Ephys().populate()
+    Stimulus().populate()
     print('import complete.')
