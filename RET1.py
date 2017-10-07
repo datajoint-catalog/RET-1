@@ -162,18 +162,20 @@ class Stimulus(dj.Manual):
         # XXX: len(timestamps) varies w/r/t len(data); timestamps definitive
         # ... actually 'num_samples' definitive, but same as len(timestamps)
         #     and so is redundant and discarded.
+        # XXX: data skipped
 
         definition = """
         -> Stimulus.Trial
         ---
         bpp		: tinyint	# bits per pixel
-        size		: decimal(3,2)	# size (mm)
+        pixel_size	: decimal(3,2)	# size
         x		: tinyint
         y		: tinyint
         dx		: tinyint
         dy		: tinyint
+        dim_a		: int
+        dim_b		: int
         timestamps	: longblob
-        data		: longblob
         """
 
 
