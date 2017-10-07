@@ -254,6 +254,8 @@ class Session(dj.Imported):
 
         self.insert1(key, ignore_extra_fields=True)
 
+        f.close()
+
 
 @schema
 class Ephys(dj.Computed):
