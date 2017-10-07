@@ -416,7 +416,6 @@ class Stimulus(dj.Computed):
         # XXX: len(timestamps) varies w/r/t len(data); timestamps definitive
         # ... actually 'num_samples' definitive, but same as len(timestamps)
         #     and so is redundant and discarded.
-        #
         # XXX: data skipped
 
         definition = """
