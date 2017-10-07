@@ -126,14 +126,19 @@ class Ephys(dj.Manual):
         cell_no		: int		# cell no
         """
 
-    class Events(dj.Part):
+    class AllEvents(dj.Part):
         definition = """
         -> Ephys.Unit
         ---
-        stim_1		: longblob	# stim_1 events
-        stim_2		: longblob	# stim_2 events
-        stim_3		: longblob	# stim_3 events
-        all		: longblob	# all events
+        times			: longblob	# all events
+        """
+
+    class StimulusEvents(dj.Part):
+        definition = """
+        -> Ephys.Unit
+        stim_id			: tinyint	# stimulus no
+        ---
+        times			: longblob	# events
         """
 
 
@@ -157,18 +162,20 @@ class Stimulus(dj.Manual):
         # XXX: len(timestamps) varies w/r/t len(data); timestamps definitive
         # ... actually 'num_samples' definitive, but same as len(timestamps)
         #     and so is redundant and discarded.
+        # XXX: data skipped
 
         definition = """
         -> Stimulus.Trial
         ---
         bpp		: tinyint	# bits per pixel
-        size		: decimal(3,2)	# size (mm)
-        x		: tinyint
-        y		: tinyint
-        dx		: tinyint
-        dy		: tinyint
+        pixel_size	: decimal(3,2)	# size
+        x		: int
+        y		: int
+        dx		: int
+        dy		: int
+        dim_a		: int
+        dim_b		: int
         timestamps	: longblob
-        data		: longblob
         """
 
 
