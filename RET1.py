@@ -169,10 +169,10 @@ class Stimulus(dj.Manual):
         ---
         bpp		: tinyint	# bits per pixel
         pixel_size	: decimal(3,2)	# size
-        x		: tinyint
-        y		: tinyint
-        dx		: tinyint
-        dy		: tinyint
+        x		: int
+        y		: int
+        dx		: int
+        dy		: int
         dim_a		: int
         dim_b		: int
         timestamps	: longblob
