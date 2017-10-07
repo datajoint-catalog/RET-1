@@ -6,8 +6,6 @@ import re
 import code
 from decimal import Decimal
 
-from datetime import datetime, timedelta
-
 import datajoint as dj
 
 from nwb import nwb_file
@@ -294,8 +292,6 @@ class Ephys(dj.Computed):
 
     class StimulusEvents(dj.Part):
 
-        TODO = True
-
         definition = """
         -> Ephys.Unit
         stim_id			: tinyint	# stimulus no
@@ -337,7 +333,8 @@ class Ephys(dj.Computed):
             try:
                 Ephys.Electrode().insert1(e_key, ignore_extra_fields=True)
             except:
-                print('Ephys().Electrode().insert1: failed key', yaml.dump(e_key))
+                print('Ephys().Electrode().insert1: failed key')
+                print(yaml.dump(e_key))
                 raise
 
         #
@@ -401,8 +398,6 @@ class Ephys(dj.Computed):
 @schema
 class Stimulus(dj.Computed):
 
-    TODO = True
-
     definition = """
     -> Session
     """
@@ -421,26 +416,81 @@ class Stimulus(dj.Computed):
         # XXX: len(timestamps) varies w/r/t len(data); timestamps definitive
         # ... actually 'num_samples' definitive, but same as len(timestamps)
         #     and so is redundant and discarded.
+        #
+        # XXX: data skipped
 
         definition = """
         -> Stimulus.Trial
         ---
         bpp		: tinyint	# bits per pixel
-        size		: decimal(3,2)	# size (mm)
-        x		: tinyint
-        y		: tinyint
-        dx		: tinyint
-        dy		: tinyint
+        pixel_size	: decimal(3,2)	# size
+        x		: int
+        y		: int
+        dx		: int
+        dy		: int
+        dim_a		: int
+        dim_b		: int
         timestamps	: longblob
-        data		: longblob
         """
 
     def _make_tuples(self, key):
+        ''' Stimulus._make_tuples '''
 
         key['nwb_file'] = (Session() & key).fetch1()['nwb_file']
-        print('Ephys()._make_tuples: nwb_file', key['nwb_file'])
+        print('Stimulus()._make_tuples: nwb_file', key['nwb_file'])
 
         f = h5py.File(key['nwb_file'], 'r')
+
+        #
+        # Stimulus
+        #
+
+        self.insert1(key, ignore_extra_fields=True)
+
+        g_epochs = f['epochs']
+
+        for stim_k in [k for k in g_epochs if 'stim_' in k]:
+
+            # Stimulus.Trial
+
+            stim = g_epochs[stim_k]
+            stim_ts = stim['stimulus']['timeseries']
+            stim_id = stim_k.split('_')[1]
+
+            key['trial'] = stim_id
+            key['start_time'] = stim['start_time'][()]
+            key['stop_time'] = stim['stop_time'][()]
+
+            try:
+                Stimulus.Trial().insert1(key, ignore_extra_fields=True)
+            except:
+                print('Stimulus().insert1: failed key', yaml.dump(key))
+                raise
+
+            # Stimulus.StimulusPresentation
+
+            key['bpp'] = int(stim_ts['bits_per_pixel'][()])
+            key['pixel_size'] = Decimal(float(stim_ts['pixel_size'][()]))
+
+            key['x'] = int(stim_ts['meister_x'][()])
+            key['y'] = int(stim_ts['meister_y'][()])
+            key['dx'] = int(stim_ts['meister_dx'][()])
+            key['dy'] = int(stim_ts['meister_dy'][()])
+
+            dims = stim_ts['dimension']
+            key['dim_a'] = dims[0]
+            key['dim_b'] = dims[1]
+
+            key['timestamps'] = stim_ts['timestamps']
+            # key['data'] = stim_ts['data']  # skipping
+
+            try:
+                Stimulus.StimulusPresentation().insert1(
+                    key, ignore_extra_fields=True)
+            except:
+                print('Stimulus.StimulusPresentation().insert1: failed key')
+                print(yaml.dump(key))
+                raise
 
         f.close()
 
