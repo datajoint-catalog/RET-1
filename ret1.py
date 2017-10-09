@@ -67,6 +67,7 @@ class Movie(dj.Manual):
     dim_b		: int
     bpp		: tinyint	# bits per pixel
     pixel_size	: decimal(3,2)	# (mm)
+    movie	: longblob	# 3d array
     """
 
 
