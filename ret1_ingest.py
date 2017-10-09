@@ -27,7 +27,6 @@ dj.config['database.password'] = ''
 dj.config['display.limit'] = 5
 dj.config['safemode'] = False
 dj.config['ingest.database'] = 'tutorial_ret1_ingest'
-dj.config['production.database'] = 'catalog_ret1_dimitri'
 
 
 def open_nwb(fname):
