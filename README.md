@@ -1,5 +1,7 @@
 # djcat-RET-1
 
+A pipeline for an retina electrophysiology study
+
 This pipeline is based on the study described in:
 
 [Lefebvre, J.L., Zhang, Y., Meister, M., Wang, X., and Sanes, J.R.
@@ -11,13 +13,11 @@ with data available from:
 
 https://crcns.org/data-sets/retina/ret-1/about-ret-1
 
-# RET-1 Schema
+## RET-1 Schema
 ![Entity-Relationship Diagram](erd-ret1.png)
 
-# Entire Pipeline
+## Entire Pipeline
 ![Entity-Relationship Diagram](erd.png)
-
-![Entity-Relationship Diagram](erd-lab.png)
 
 ## Online viewing
 
@@ -56,7 +56,7 @@ can add it from within python as follows:
     >>> import os
     >>> sys.path.insert(0, os.path.join('..','djcat-lab'))
 
-
 # Support
 Please submit issues and questions through the [Issues tab
 above](https://github.com/datajoint-catalog/RET-1/issues)
+=======
