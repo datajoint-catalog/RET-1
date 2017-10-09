@@ -3,13 +3,12 @@
 import os
 
 import re
-import code
+from datetime import datetime
 from decimal import Decimal
 
 import datajoint as dj
 
 from nwb import nwb_file
-from nwb import nwb_utils
 
 import h5py
 
@@ -17,17 +16,18 @@ from pymysql.err import IntegrityError
 
 import yaml
 
-{'unused': [code, nwb_utils]}
-# 23456789_123456789_123456789_123456789_123456789_123456789_123456789_12345678
-
-
-dj.config['database.host'] = 'localhost'
+dj.config['database.host'] = 'tutorial-db.datajoint.io'
 dj.config['database.user'] = 'chris'
 dj.config['database.password'] = ''
 dj.config['display.limit'] = 5
 dj.config['safemode'] = False
-dj.config['ingest.database'] = 'tutorial_ret1_ingest'
-dj.config['production.database'] = 'catalog_ret1_dimitri'
+dj.config['ingest.database'] = 'catalog_ret1_ingest'
+
+# schema = dj.schema(dj.config['ingest.database'], locals())
+# schema.drop(force=True)
+schema = dj.schema(dj.config['ingest.database'], locals())
+
+nwbfiledir = 'data'
 
 
 def open_nwb(fname):
@@ -51,13 +51,6 @@ def study_from_nwb(fh):
     Study().insert1(key)
 
 
-schema = dj.schema(dj.config['ingest.database'], locals())
-schema.drop(force=True)
-schema = dj.schema(dj.config['ingest.database'], locals())
-
-nwbfiledir = 'data'
-
-
 @schema
 class InputFile(dj.Lookup):
     definition = '''
@@ -68,13 +61,7 @@ class InputFile(dj.Lookup):
                 for f in os.listdir(nwbfiledir) if f.endswith('.nwb')]
 
 
-# TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
-# TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
-# TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
-#
-# import djcat_lab
-# & copy module import dancing logic -
-# for now, just reproducing here.
+# XXX: reproducing djcat-lab module tables here to keep ingest separate.
 
 
 @schema
@@ -143,9 +130,8 @@ class Subject(dj.Manual):
     animal_source	: varchar(30)
     """
 
-# END TODO END TODO END TODO END TODO END TODO END TODO END TODO END TODO
-# END TODO END TODO END TODO END TODO END TODO END TODO END TODO END TODO
-# END TODO END TODO END TODO END TODO END TODO END TODO END TODO END TODO
+
+# XXX: END reproducing djcat-lab module tables here to keep ingest separate.
 
 
 @schema
