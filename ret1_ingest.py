@@ -5,6 +5,7 @@ import os
 import re
 from datetime import datetime
 from decimal import Decimal
+from importlib import reload
 
 import datajoint as dj
 
@@ -16,21 +17,37 @@ from pymysql.err import IntegrityError
 
 import yaml
 
-dj.config['database.host'] = 'tutorial-db.datajoint.io'
-dj.config['database.user'] = 'chris'
-dj.config['database.password'] = ''
+config = 'local'
+# config = 'cloud'
+
 dj.config['display.limit'] = 5
 dj.config['safemode'] = False
-dj.config['ingest.database'] = 'catalog_ret1_ingest'
 
-# schema = dj.schema(dj.config['ingest.database'], locals())
-# schema.drop(force=True)
+if config == 'local':
+    dj.config['database.host'] = 'localhost'
+    dj.config['database.user'] = 'chris'
+    dj.config['database.password'] = ''
+    dj.config['ingest.database'] = 'tutorial_ret1_ingest'
+    dj.config['names.djcat_lab'] = 'tutorial_ret1_lab_ingest'
+
+if config == 'cloud':
+    dj.config['database.host'] = 'tutorial-db.datajoint.io'
+    dj.config['database.user'] = 'chris'
+    # dj.config['database.password'] = ''
+    dj.config['ingest.database'] = 'catalog_ret1_ingest_new'
+    dj.config['names.djcat_lab'] = 'catalog_ret1_lab_ingest_new'
+
+
+import djcat_lab as lab
 schema = dj.schema(dj.config['ingest.database'], locals())
 
 nwbfiledir = 'data'
 
 
 def open_nwb(fname):
+    '''
+    open_nwb: wrapper to open nwb files
+    '''
     use_nwb_file = False  # slower due to validation; more memory use
     if use_nwb_file:
         return nwb_file.open(fname, None, 'r').file_pointer
@@ -39,6 +56,9 @@ def open_nwb(fname):
 
 
 def study_from_nwb(fh):
+    '''
+    simple procedural function to load the djcat_lab information
+    '''
     key = {}
     g_gen = fh['general']
 
@@ -48,7 +68,8 @@ def study_from_nwb(fh):
     key['lab'] = g_gen['lab'][()].decode()
     key['reference_atlas'] = ''  # XXX: not in file
 
-    Study().insert1(key)
+    lab.Lab().insert1(key, ignore_extra_fields=True)
+    lab.Study().insert1(key, ignore_extra_fields=True)
 
 
 @schema
@@ -61,96 +82,21 @@ class InputFile(dj.Lookup):
                 for f in os.listdir(nwbfiledir) if f.endswith('.nwb')]
 
 
-# XXX: reproducing djcat-lab module tables here to keep ingest separate.
-
-
-@schema
-class Keyword(dj.Lookup):
-    TODO = True
-    definition = """
-    # Tag of study types
-    keyword	: varchar(24)
-    """
-    contents = zip(['behavior', 'extracellular', 'photostim'])
-
-
-@schema
-class Study(dj.Manual):
-    definition = """
-    # Study
-    study		: varchar(8)	# short name of the study
-    ---
-    study_description	: varchar(255)	#
-    institution		: varchar(255)	# institution conducting the study
-    lab			: varchar(255)	# lab conducting the study
-    reference_atlas	: varchar(255)	# e.g. "paxinos"
-    """
-
-
-@schema
-class StudyKeyword(dj.Manual):
-    TODO = True
-    definition = """
-    # Study keyword (see general/notes)
-    -> Study
-    -> Keyword
-    """
-
-
-@schema
-class Publication(dj.Manual):
-    TODO = True
-    definition = """
-    # Publication
-    doi			: varchar(60)	# publication DOI
-    ----
-    full_citation	: varchar(4000)
-    authors=''		: varchar(4000)
-    title=''		: varchar(1024)
-    """
-
-
-@schema
-class RelatedPublication(dj.Manual):
-    TODO = True
-    definition = """
-    -> Study
-    -> Publication
-    """
-
-
-@schema
-class Subject(dj.Manual):
-    definition = """
-    subject_id		: int				# institution animal ID
-    ---
-    species		: varchar(30)
-    date_of_birth	: date
-    sex			: enum('M','F','Unknown')
-    animal_source	: varchar(30)
-    """
-
-
-# XXX: END reproducing djcat-lab module tables here to keep ingest separate.
-
-
 @schema
 class Session(dj.Imported):
-
-    # Note: generating animal ID here - input files only contain genotype
     definition = """
-    -> Subject
-    record		: int
-    sample		: int
+    -> lab.Subject
+    session  :  int 
     ---
-    -> Study
+    -> lab.Study
+    record         : int
+    sample         : int
     session_date	: date		# session date
     session_suffix	: char(2)	# suffix for disambiguating sessions
-    experimenter	: varchar(60)	# experimenter's name
+    (experimenter) -> lab.User
     session_start_time	: datetime
     -> InputFile
     """
-
     sess_re = re.compile('.*?\[(.*?)\].*\[(.*?)\]')  # RecNo: [4]; SmplNo: [2]
 
     @property
@@ -198,8 +144,14 @@ class Session(dj.Imported):
 
         key['record'] = record
         key['sample'] = sample
+        key['session'] = int(record + sample)
 
-        key['experimenter'] = g_gen['experimenter'][()].decode()
+        key['full_name'] = g_gen['experimenter'][()].decode()
+        key['username'] = key['full_name'].split(' ')[0]
+        key['experimenter'] = key['username']
+
+        if not (lab.User() & key):
+            lab.User().insert1(key, ignore_extra_fields=True)
 
         stime = f['session_start_time'][()].decode()
         stime = datetime.strptime(stime, '%a %b %d %Y %H:%M:%S')
@@ -232,11 +184,11 @@ class Session(dj.Imported):
         key['subject_id'] = sids[genotype]
         key['species'] = g_subject['species'][()].decode()
 
-        if not (Subject() & key):  # ... add subject if new
+        if not (lab.Subject() & key):  # ... add subject if new
             key['date_of_birth'] = '1970-01-01'  # HACK data unavail
             key['sex'] = 'Unknown'
             key['animal_source'] = 'Unknown'
-            Subject().insert1(key, ignore_extra_fields=True)
+            lab.Subject().insert1(key, ignore_extra_fields=True)
 
         self.insert1(key, ignore_extra_fields=True)
 
@@ -271,20 +223,11 @@ class Ephys(dj.Computed):
         cell_no		: int		# cell no
         """
 
-    class AllEvents(dj.Part):
+    class Spikes(dj.Part):
         definition = """
         -> Ephys.Unit
         ---
-        times			: longblob	# all events
-        """
-
-    class StimulusEvents(dj.Part):
-
-        definition = """
-        -> Ephys.Unit
-        stim_id			: tinyint	# stimulus no
-        ---
-        times			: longblob	# events
+        spike_times	: longblob	# all events
         """
 
     def _make_tuples(self, key):
@@ -331,7 +274,7 @@ class Ephys(dj.Computed):
         #
 
         #
-        # Ephys.Unit, Ephys.AllEvents and Ephys.StimulusEvents
+        # Ephys.Unit & Ephys.Spikes
         #
 
         g_units = g_proc['Cells']['UnitTimes']
@@ -354,31 +297,85 @@ class Ephys(dj.Computed):
                 print('Ephys().Unit().insert1: failed key', yaml.dump(u_key))
                 raise
 
-            e_key['times'] = unit['times']
+            # Ephys.Spikes()
+            # Note: individual spike data e.g. unit['stim_1'] discarded;
+            # they are already concatenated together to form spike_times 
 
-            # Ephys.AllEvents()
+            e_key['spike_times'] = unit['times'].value
 
             try:
-                Ephys().AllEvents().insert1(e_key, ignore_extra_fields=True)
+                Ephys().Spikes().insert1(e_key, ignore_extra_fields=True)
             except:
                 print('Ephys().AllEvents().insert1: failed key',
                       yaml.dump(u_key))
                 raise
 
-            for stim_k in [k for k in unit if 'stim_' in k]:
+        f.close()
 
-                e_key['stim_id'] = stim_k.split('_')[1]
-                e_key['times'] = unit[stim_k]
 
-                # Ephys.AllEvents()
+@schema
+class Movie(dj.Computed):
+    definition = """
+    movie_id		: smallint	# movie IDs
+    ----
+    x			: int
+    y			: int
+    dx			: int
+    dy			: int
+    dim_a		: int
+    dim_b		: int
+    bpp			: tinyint	# bits per pixel
+    pixel_size		: decimal(3,2)	# (mm)
+    movie		: longblob	# 3d array
+    source_fname	: varchar(255)	# source file
+    -> InputFile
+    """
 
-                try:
-                    Ephys().StimulusEvents().insert1(
-                        e_key, ignore_extra_fields=True)
-                except:
-                    print('Ephys().StimulusEvents().insert1: failed key',
-                          yaml.dump(u_key))
-                    raise
+    @property
+    def key_source(self):
+        return InputFile()
+    
+    def _make_tuples(self, key):
+        ''' Movie._make_tuples '''
+
+        key['nwb_file'] = (Session() & key).fetch1()['nwb_file']
+        print('Movie()._make_tuples: nwb_file', key['nwb_file'])
+
+        f = h5py.File(key['nwb_file'], 'r')
+
+        # /stimulus/presentation/rec_stim_N/timeseries : group
+        # /stimulus/presentation/rec_stim_N/timeseries/data : movie
+
+        g_pres = f.get('/stimulus/presentation')
+
+        for stim in (g_pres[k] for k in g_pres if 'rec_stim_' in k):
+
+            movie = stim['data']
+            source_fname = movie.file.filename.split('/')[-1:][0]
+
+            if(self & dict(source_fname=source_fname)):
+                continue
+
+            print('loading movie', source_fname, 'from', stim.name)
+
+            # generate synthetic 'autoincrement' movie_id
+            movie_id = (dj.U().aggr(Movie(),
+                n='max(movie_id)').fetch1('n') or 0)+1
+
+            self.insert1({
+                'movie_id': movie_id,
+                'x': int(stim['meister_x'][()]),
+                'y': int(stim['meister_y'][()]),
+                'dx': int(stim['meister_dx'][()]),
+                'dy': int(stim['meister_dy'][()]),
+                'dim_a': int(stim['dimension'][0]),
+                'dim_b': int(stim['dimension'][1]),
+                'bpp': int(stim['bits_per_pixel'][()]),
+                'pixel_size': Decimal(float(stim['pixel_size'][()])),
+                'movie': movie.value,
+                'source_fname':	source_fname,
+                'nwb_file': key['nwb_file']
+            })
 
         f.close()
 
@@ -391,92 +388,64 @@ class Stimulus(dj.Computed):
     """
 
     class Trial(dj.Part):
-        definition = """
-        -> Stimulus
-        trial		: smallint	# trial within a session
-        ---
-        start_time	: float
-        stop_time	: float
-        """
 
-    class StimulusPresentation(dj.Part):
-
-        # XXX: len(timestamps) varies w/r/t len(data); timestamps definitive
+        # XXX: len(timestamps) varies w/r/t len(movie); timestamps definitive
         # ... actually 'num_samples' definitive, but same as len(timestamps)
         #     and so is redundant and discarded.
-        # XXX: data skipped
 
         definition = """
-        -> Stimulus.Trial
+        -> Stimulus
+        trial_idx	: smallint	# trial within a session
         ---
-        bpp		: tinyint	# bits per pixel
-        pixel_size	: decimal(3,2)	# size
-        x		: int
-        y		: int
-        dx		: int
-        dy		: int
-        dim_a		: int
-        dim_b		: int
-        timestamps	: longblob
+        -> Movie
+        start_time	: float		# (s)
+        stop_time	: float		# (s)
+        timestamps	: longblob	# (s)
         """
 
     def _make_tuples(self, key):
         ''' Stimulus._make_tuples '''
 
-        key['nwb_file'] = (Session() & key).fetch1()['nwb_file']
-        print('Stimulus()._make_tuples: nwb_file', key['nwb_file'])
+        nwb_file = (Session() & key).fetch1()['nwb_file']
+        print('Stimulus()._make_tuples: nwb_file', nwb_file)
 
-        f = h5py.File(key['nwb_file'], 'r')
+        f = h5py.File(nwb_file, 'r')
 
         #
         # Stimulus
         #
+        # /epochs/stim_N : group
 
         self.insert1(key, ignore_extra_fields=True)
 
         g_epochs = f['epochs']
 
-        for stim_k in [k for k in g_epochs if 'stim_' in k]:
+        #
+        # Stimulus.Trial
+        #
+        # /epochs/stim_N : group
+        # /epochs/stim_N/timeseries : group
 
-            # Stimulus.Trial
+        for stim_k in [k for k in g_epochs if 'stim_' in k]:
 
             stim = g_epochs[stim_k]
             stim_ts = stim['stimulus']['timeseries']
             stim_id = stim_k.split('_')[1]
 
-            key['trial'] = stim_id
+            key['trial_idx'] = stim_id
             key['start_time'] = stim['start_time'][()]
             key['stop_time'] = stim['stop_time'][()]
+            key['timestamps'] = stim_ts['timestamps'].value
+            
+            movie_fname = stim_ts['data'].file.filename.split('/')[-1:][0]
+
+            key['movie_id'] = (Movie() &
+                dict(source_fname=movie_fname)).fetch1('movie_id')
 
             try:
                 Stimulus.Trial().insert1(key, ignore_extra_fields=True)
             except:
                 print('Stimulus().insert1: failed key', yaml.dump(key))
-                raise
-
-            # Stimulus.StimulusPresentation
-
-            key['bpp'] = int(stim_ts['bits_per_pixel'][()])
-            key['pixel_size'] = Decimal(float(stim_ts['pixel_size'][()]))
-
-            key['x'] = int(stim_ts['meister_x'][()])
-            key['y'] = int(stim_ts['meister_y'][()])
-            key['dx'] = int(stim_ts['meister_dx'][()])
-            key['dy'] = int(stim_ts['meister_dy'][()])
-
-            dims = stim_ts['dimension']
-            key['dim_a'] = dims[0]
-            key['dim_b'] = dims[1]
-
-            key['timestamps'] = stim_ts['timestamps']
-            # key['data'] = stim_ts['data']  # skipping
-
-            try:
-                Stimulus.StimulusPresentation().insert1(
-                    key, ignore_extra_fields=True)
-            except:
-                print('Stimulus.StimulusPresentation().insert1: failed key')
-                print(yaml.dump(key))
                 raise
 
         f.close()
@@ -485,5 +454,6 @@ class Stimulus(dj.Computed):
 if __name__ == '__main__':
     Session().populate()
     Ephys().populate()
+    Movie().populate()
     Stimulus().populate()
     print('import complete.')
